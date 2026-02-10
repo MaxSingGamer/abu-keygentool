@@ -120,8 +120,8 @@ impl KeyGenerator {
         // 派生加密密钥
         let encryption_key = security::SecureKey::derive_encryption_key(password, &salt)?;
         
-        // 这里简化处理 - 实际需要将私钥序列化
-        let private_key_bytes = Vec::new(); // 应包含实际的私钥数据
+        // 导出私钥为 PKCS#8 格式字节
+        let private_key_bytes = _secure_key.export_pkcs8();
         
         // 加密私钥
         let (ciphertext, nonce) = aes_gcm_encrypt(&private_key_bytes, &encryption_key)?;

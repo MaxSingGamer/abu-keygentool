@@ -30,7 +30,13 @@ impl Config {
     }
     
     pub fn save(&self) -> Result<(), anyhow::Error> {
-        // 保存配置到文件
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {:?}", e))?;
+
+        // 写入当前工作目录下的配置文件 abu_config.json
+        std::fs::write("abu_config.json", json)
+            .map_err(|e| anyhow::anyhow!("Failed to write config file: {:?}", e))?;
+
         Ok(())
     }
 }
