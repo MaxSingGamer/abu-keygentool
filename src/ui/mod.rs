@@ -76,8 +76,8 @@ impl UserInterface {
     /// 输入银行/城镇名称
     pub fn input_bank_name(&self) -> Result<String> {
         let name: String = Input::with_theme(&self.theme)
-            .with_prompt("请输入您的玩家名称")
-            .default("Example Player".to_string())
+            .with_prompt("请输入您的银行/玩家名称")
+            .default("Example".to_string())
             .interact()?;
         
         Ok(name)
