@@ -203,7 +203,7 @@ impl KeyGenerator {
         println!("{}", ui::style("══════════════════════════════════════════").cyan());
         println!("{}", ui::style("              密钥生成摘要                ").bold());
         println!("{}", ui::style("══════════════════════════════════════════").cyan());
-        println!("🏦 银行/城镇: {}", ui::style(bank_name).bold());
+        println!("🏦 银行/玩家名: {}", ui::style(bank_name).bold());
         println!("📁 密钥文件: {}", ui::style(path.display()).bold());
         println!("🔐 密钥类型: ECC P-256 (椭圆曲线加密)");
         println!("📅 生成时间: {}", Local::now().format("%Y-%m-%d %H:%M:%S"));
@@ -233,7 +233,7 @@ impl KeyGenerator {
                     }
                 }
                 ui::Operation::Exit => {
-                    println!("感谢使用ABU密钥生成器！");
+                    println!("感谢使用ABU密钥生成器");
                     break;
                 }
             }
@@ -244,7 +244,7 @@ impl KeyGenerator {
                 .default(true)
                 .interact()?
             {
-                println!("感谢使用ABU密钥生成器！");
+                println!("感谢使用ABU密钥生成器");
                 break;
             }
         }
