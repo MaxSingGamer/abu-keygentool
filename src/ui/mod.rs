@@ -22,12 +22,13 @@ impl UserInterface {
     pub fn show_welcome(&self) {
         println!();
         println!("{}", style("╔══════════════════════════════════════════╗").cyan());
-        println!("{}", style("║      阿尔法银行联盟 (ABU)              ║").cyan());
-        println!("{}", style("║      Alpha Coin 密钥生成器              ║").cyan());
+        println!("{}", style("║           ABU - Alpha Bank Union         ║").cyan());
+        println!("{}", style("║              通用密钥生成器              ║").cyan());
+        println!("{}", style("║   ©2026 Max Shin - All Rights Reserved.  ║").cyan());
         println!("{}", style("╚══════════════════════════════════════════╝").cyan());
         println!();
-        println!("欢迎使用 Alpha Coin 密钥生成工具");
-        println!("此工具将为您的联邦储蓄与信贷银行(FSCB)生成安全的ECC密钥对");
+        println!("欢迎使用 Alpha Bank Union 通用密钥生成器");
+        println!("此工具将为您生成安全的ECC密钥对");
         println!();
     }
     
@@ -35,9 +36,7 @@ impl UserInterface {
     pub fn select_operation(&self) -> Result<Operation> {
         let items = vec![
             "生成新的密钥对",
-            "导入现有密钥",
-            "导出公钥",
-            "验证密钥",
+            "解密/导出私钥（需密码）",
             "退出程序",
         ];
         
@@ -49,10 +48,8 @@ impl UserInterface {
         
         match selection {
             0 => Ok(Operation::Generate),
-            1 => Ok(Operation::Import),
-            2 => Ok(Operation::Export),
-            3 => Ok(Operation::Verify),
-            4 => Ok(Operation::Exit),
+            1 => Ok(Operation::Decrypt),
+            2 => Ok(Operation::Exit),
             _ => Ok(Operation::Exit),
         }
     }
@@ -80,7 +77,7 @@ impl UserInterface {
     pub fn input_bank_name(&self) -> Result<String> {
         let name: String = Input::with_theme(&self.theme)
             .with_prompt("请输入您的银行/城镇名称")
-            .default("联邦储蓄与信贷银行".to_string())
+            .default("FSCB".to_string())
             .interact()?;
         
         Ok(name)
@@ -95,6 +92,17 @@ impl UserInterface {
             .map_err(|e| anyhow::anyhow!("文件对话框错误: {:?}", e))?
             .ok_or_else(|| anyhow::anyhow!("用户取消了文件选择"))?;
         
+        Ok(path)
+    }
+
+    /// 选择要打开的私钥文件（解密用）
+    pub fn select_open_location(&self) -> Result<PathBuf> {
+        let path = FileDialog::new()
+            .set_title("选择要解密的私钥文件")
+            .show_open_single_file()
+            .map_err(|e| anyhow::anyhow!("文件对话框错误: {:?}", e))?
+            .ok_or_else(|| anyhow::anyhow!("用户取消了文件选择"))?;
+
         Ok(path)
     }
     
@@ -131,8 +139,6 @@ impl UserInterface {
 
 pub enum Operation {
     Generate,
-    Import,
-    Export,
-    Verify,
+    Decrypt,
     Exit,
 }

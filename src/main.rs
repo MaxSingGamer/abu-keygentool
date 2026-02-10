@@ -28,6 +28,47 @@ impl KeyGenerator {
             ui: ui::UserInterface::new(),
         }
     }
+
+    /// 解密并导出私钥文件的交互流程
+    fn decrypt_private_key_flow(&self) -> Result<()> {
+        // 选择要解密的加密私钥文件
+        let path = self.ui.select_open_location()?;
+        let data = std::fs::read(&path)?;
+
+        if data.len() < 28 {
+            return Err(anyhow::anyhow!("文件太短，无法包含 salt/nonce/密文"));
+        }
+
+        // 读取 salt(16) + nonce(12) + ciphertext
+        let salt = &data[0..16];
+        let nonce = &data[16..28];
+        let ciphertext = &data[28..];
+
+        // 输入密码
+        let password = self.ui.input_password("请输入用于解密私钥的密码（输入时不可见）", false)?;
+
+        // 派生密钥并解密
+        let key = security::SecureKey::derive_encryption_key(&password, salt)?;
+        let mut nonce_arr = [0u8; 12];
+        nonce_arr.copy_from_slice(nonce);
+
+        let plaintext = security::encryption::aes_gcm_decrypt(ciphertext, &key, &nonce_arr)?;
+
+        // 警告并询问是否保存明文私钥
+        println!("警告：即将导出私钥原文，可能导致密钥泄露！");
+        if dialoguer::Confirm::new()
+            .with_prompt("确认导出私钥原文并以 ASCII 装甲保存？")
+            .default(false)
+            .interact()? {
+            let default_name = format!("decrypted_private_{}.asc", Local::now().format("%Y%m%d_%H%M%S"));
+            let save_path = self.ui.select_save_location(&default_name)?;
+            let armored = pgp::add_ascii_armor(&plaintext, sequoia_openpgp::armor::Kind::SecretKey)?;
+            std::fs::write(save_path, armored)?;
+            println!("私钥已保存（明文装甲）。请尽快安全删除该文件。");
+        }
+
+        Ok(())
+    }
     
     /// 生成新密钥对
     pub fn generate_keys(&self) -> Result<()> {
@@ -47,37 +88,57 @@ impl KeyGenerator {
         println!();
         println!("{} 正在生成ECC P-256密钥对...", ui::style("⏳").cyan());
 
-        // 生成密钥
-        let secure_key = security::SecureKey::generate()?;
-        let public_key = secure_key.public_key().to_vec();
+        // 生成密钥（使用 OpenPGP user id 使得证书与私钥匹配）
+        let user_id = format!("{} <{}@abu.mc>", bank_name, bank_name.to_lowercase());
+        let secure_key = security::SecureKey::generate(&user_id)?;
+        let public_bytes = secure_key.public_cert_bytes();
 
         // 导出私钥并加密
         println!("{} 正在加密私钥...", ui::style("⏳").cyan());
         let private_key_data = self.export_and_encrypt_private_key(&secure_key, &password)?;
 
-        // 创建PGP证书
-        println!("{} 正在创建OpenPGP证书...", ui::style("⏳").cyan());
-        let user_id = format!("{} <{}@abu.mc>", bank_name, bank_name.to_lowercase());
-        let pgp_cert = pgp::create_pgp_cert(
-            &public_key,
-            &private_key_data,
-            &user_id,
-            Some(&password),
-        )?;
+        // 创建并保存公钥（ASCII 装甲），以及保存加密私钥为单独二进制文件
+        println!("{} 正在创建并导出公钥与加密私钥...", ui::style("⏳").cyan());
 
-        // 添加ASCII装甲
-        let armored = pgp::add_ascii_armor(&pgp_cert, sequoia_openpgp::armor::Kind::SecretKey)?;
+        // 公钥 ASCII 装甲（标准 OpenPGP 公钥证书）
+        let armored_public = pgp::add_ascii_armor(&public_bytes, sequoia_openpgp::armor::Kind::PublicKey)?;
 
-        // 选择保存位置
-        let default_name = format!("{}_keypair_{}.asc",
+        // 选择保存公钥位置
+        let default_pub_name = format!("{}_public_{}.asc",
             bank_name.replace(' ', "_"),
             Local::now().format("%Y%m%d_%H%M%S")
         );
+        let pub_save_path = self.ui.select_save_location(&default_pub_name)?;
 
-        let save_path = self.ui.select_save_location(&default_name)?;
+        // 保存公钥文件
+        fs::write(&pub_save_path, armored_public)?;
 
-        // 保存文件
-        fs::write(&save_path, armored)?;
+        // 私钥文件名和路径（与公钥所在目录相同）
+        let private_name = format!("{}_private_{}.bin",
+            bank_name.replace(' ', "_"),
+            Local::now().format("%Y%m%d_%H%M%S")
+        );
+        let private_path = pub_save_path.parent().unwrap_or(std::path::Path::new("")).join(private_name);
+
+        // 保存加密私钥（二进制包含 salt||nonce||ciphertext）
+        fs::write(&private_path, &private_key_data)?;
+
+        // 可选：导出私钥原文（不安全，提示并确认）
+        if dialoguer::Confirm::new()
+            .with_prompt("是否导出私钥原文（明文、极不安全）？")
+            .default(false)
+            .interact()? {
+            println!("警告：导出私钥原文将以未加密形式写入磁盘，这可能导致密钥泄露！");
+            let secret_bytes = secure_key.secret_key_bytes();
+            let armored_secret = pgp::add_ascii_armor(&secret_bytes, sequoia_openpgp::armor::Kind::SecretKey)?;
+
+            let default_secret_name = format!("{}_private_clear_{}.asc",
+                bank_name.replace(' ', "_"),
+                Local::now().format("%Y%m%d_%H%M%S")
+            );
+            let secret_save = self.ui.select_save_location(&default_secret_name)?;
+            fs::write(&secret_save, armored_secret)?;
+        }
 
         // 创建元数据文件
         let metadata = KeyMetadata {
@@ -90,16 +151,17 @@ impl KeyGenerator {
         };
 
         let metadata_json = serde_json::to_string_pretty(&metadata)?;
-        let metadata_path = save_path.with_extension("json");
+        let metadata_path = pub_save_path.with_extension("json");
         fs::write(metadata_path, metadata_json)?;
 
-        // 显示成功消息
+        // 显示成功消息（列出公钥与私钥保存位置）
         self.ui.show_success(&format!(
-            "密钥对已成功生成并保存到:\n{}\n\n请妥善保管您的私钥文件！",
-            save_path.display()
+            "公钥已保存到: {}\n私钥（已加密）已保存到: {}\n\n请妥善保管您的私钥文件！",
+            pub_save_path.display(),
+            private_path.display(),
         ));
 
-        self.show_key_summary(&bank_name, &save_path);
+        self.show_key_summary(&bank_name, &pub_save_path);
 
         Ok(())
     }
@@ -107,31 +169,31 @@ impl KeyGenerator {
     /// 导出并加密私钥
     fn export_and_encrypt_private_key(
         &self,
-        _secure_key: &security::SecureKey,
+        secure_key: &security::SecureKey,
         password: &str,
     ) -> Result<Vec<u8>> {
         use security::encryption::aes_gcm_encrypt;
-        
+
         // 生成盐值
         let mut salt = [0u8; 16];
         let mut rng = rand::rngs::OsRng;
         rng.fill_bytes(&mut salt);
-        
+
         // 派生加密密钥
         let encryption_key = security::SecureKey::derive_encryption_key(password, &salt)?;
-        
-        // 导出私钥为 PKCS#8 格式字节
-        let private_key_bytes = _secure_key.export_pkcs8();
-        
+
+        // 导出私钥为 OpenPGP secret bytes（未加密）
+        let private_key_bytes = secure_key.secret_key_bytes();
+
         // 加密私钥
         let (ciphertext, nonce) = aes_gcm_encrypt(&private_key_bytes, &encryption_key)?;
-        
+
         // 组合数据：盐 + nonce + 密文
         let mut encrypted_data = Vec::new();
         encrypted_data.extend_from_slice(&salt);
         encrypted_data.extend_from_slice(&nonce);
         encrypted_data.extend_from_slice(&ciphertext);
-        
+
         Ok(encrypted_data)
     }
     
@@ -165,14 +227,10 @@ impl KeyGenerator {
                         self.ui.show_error(&format!("生成失败: {}", e));
                     }
                 }
-                ui::Operation::Import => {
-                    println!("导入功能开发中...");
-                }
-                ui::Operation::Export => {
-                    println!("导出功能开发中...");
-                }
-                ui::Operation::Verify => {
-                    println!("验证功能开发中...");
+                ui::Operation::Decrypt => {
+                    if let Err(e) = self.decrypt_private_key_flow() {
+                        self.ui.show_error(&format!("解密失败: {}", e));
+                    }
                 }
                 ui::Operation::Exit => {
                     println!("感谢使用ABU密钥生成器！");
