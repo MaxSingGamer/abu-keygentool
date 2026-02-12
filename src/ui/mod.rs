@@ -127,7 +127,7 @@ impl UserInterface {
         println!("{}", style("1. 请务必备份您的私钥文件").yellow());
         println!("{}", style("2. 不要将私钥分享给任何人").yellow());
         println!("{}", style("3. 设置强密码（建议12位以上）").yellow());
-        println!("{}", style("4. 私钥丢失将导致资产永久无法访问").yellow());
+        println!("{}", style("4. 私钥丢失将导致您使用此密钥加密的资产永久无法访问").yellow());
         
         Confirm::with_theme(&self.theme)
             .with_prompt("我已阅读并理解上述警告")

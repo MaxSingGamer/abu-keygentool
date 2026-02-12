@@ -90,7 +90,19 @@ impl KeyGenerator {
 
         // 生成密钥（使用 OpenPGP user id 使得证书与私钥匹配）
         let user_id = format!("{} <{}@abu.mc>", bank_name, bank_name.to_lowercase());
-        let secure_key = security::SecureKey::generate(&user_id)?;
+        let secure_key = match security::SecureKey::generate(&user_id) {
+            Ok(k) => k,
+            Err(e) => {
+                // 打印错误链以便诊断
+                eprintln!("SecureKey::generate() failed: {:?}", e);
+                let mut src = e.source();
+                while let Some(s) = src {
+                    eprintln!("Caused by: {:?}", s);
+                    src = s.source();
+                }
+                return Err(e);
+            }
+        };
         let public_bytes = secure_key.public_cert_bytes();
 
         // 导出私钥并加密
@@ -100,8 +112,12 @@ impl KeyGenerator {
         // 创建并保存公钥（ASCII 装甲），以及保存加密私钥为单独二进制文件
         println!("{} 正在创建并导出公钥与加密私钥...", ui::style("⏳").cyan());
 
-        // 公钥 ASCII 装甲（标准 OpenPGP 公钥证书）
-        let armored_public = pgp::add_ascii_armor(&public_bytes, sequoia_openpgp::armor::Kind::PublicKey)?;
+        // 公钥已由 SecureKey 以 ASCII 装甲生成，直接使用 bytes
+        // public_bytes may already be an ASCII-armored UTF-8 buffer; try to convert safely
+        let armored_public = match String::from_utf8(public_bytes.clone()) {
+            Ok(s) => s,
+            Err(_) => pgp::add_ascii_armor(&public_bytes, sequoia_openpgp::armor::Kind::PublicKey)?,
+        };
 
         // 选择保存公钥位置
         let default_pub_name = format!("{}_public_{}.asc",
@@ -123,22 +139,9 @@ impl KeyGenerator {
         // 保存加密私钥（二进制包含 salt||nonce||ciphertext）
         fs::write(&private_path, &private_key_data)?;
 
-        // 可选：导出私钥原文（不安全，提示并确认）
-        if dialoguer::Confirm::new()
-            .with_prompt("是否导出私钥原文（明文、极不安全）？")
-            .default(false)
-            .interact()? {
-            println!("警告：导出私钥原文将以未加密形式写入磁盘，这可能导致密钥泄露！");
-            let secret_bytes = secure_key.secret_key_bytes();
-            let armored_secret = pgp::add_ascii_armor(&secret_bytes, sequoia_openpgp::armor::Kind::SecretKey)?;
-
-            let default_secret_name = format!("{}_private_clear_{}.asc",
-                bank_name.replace(' ', "_"),
-                Local::now().format("%Y%m%d_%H%M%S")
-            );
-            let secret_save = self.ui.select_save_location(&default_secret_name)?;
-            fs::write(&secret_save, armored_secret)?;
-        }
+        // 注意：不在生成完成时导出可直接被 GnuPG 导入的私钥。
+        // 私钥的明文导出改为通过主菜单的“解密并导出”功能进行，
+        // 以保证用户在导出前主动解密并确认风险。
 
         // 创建元数据文件
         let metadata = KeyMetadata {
@@ -210,8 +213,8 @@ impl KeyGenerator {
         println!("{}", ui::style("══════════════════════════════════════════").cyan());
         println!();
         
-        println!("{}", ui::style("下一步操作:").yellow().bold());
-        println!("1. 将公钥文件(.asc)提交给ABU联盟进行注册");
+        println!("{}", ui::style("请自行操作下一步:").yellow().bold());
+        println!("1. 将公钥文件(.asc)提交给ABU/银行进行注册");
         println!("2. 备份私钥到安全的离线存储设备");
         println!("3. 使用此密钥进行Alpha Coin的交易签名");
     }

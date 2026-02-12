@@ -22,15 +22,60 @@ impl SecureKey {
     pub fn generate(user_id: &str) -> Result<Self, anyhow::Error> {
         let mut builder = CertBuilder::new();
         builder = builder.add_userid(user_id);
+        // 强制使用 NIST P-256 (secp256r1) 作为主密钥算法，以避免在 Windows CNG 后端上
+        // 对某些默认算法（如 Ed25519）出现序列化问题。
+        builder = builder.set_cipher_suite(openpgp::cert::CipherSuite::P256);
 
         // generate() 返回 (Cert, KeyPair)；Cert 包含公开信息和秘密密钥包
-        let (cert, _key) = builder.generate()?;
+        let gen_res = builder.generate();
+        let (cert, _key) = match gen_res {
+            Ok(pair) => pair,
+            Err(e) => {
+                eprintln!("CertBuilder::generate() error: {:?}", e);
+                let mut src = e.source();
+                while let Some(s) = src {
+                    eprintln!("Caused by: {:?}", s);
+                    src = s.source();
+                }
+                return Err(anyhow::anyhow!("CertBuilder::generate() failed: {:?}", e));
+            }
+        };
 
-        let mut secret_out = Vec::new();
-        cert.as_tsk().serialize_into(&mut secret_out)?;
+        // 输出证书包含的密钥计数（供调试）
+        let key_count = cert.keys().count();
+        eprintln!("cert.keys() count: {}", key_count);
 
-        let mut public_out = Vec::new();
-        cert.serialize_into(&mut public_out)?;
+        // 打印完整 Cert 的调试信息，便于诊断序列化问题
+        eprintln!("cert debug: {:#?}", cert);
+
+        // 使用 ASCII 装甲导出（保证 GnuPG 可导入）
+        // 公钥（TPK）装甲
+        let public_out = match cert.armored().to_vec() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("armored public cert failed: {:?}", e);
+                let mut src = e.source();
+                while let Some(s) = src {
+                    eprintln!("Caused by: {:?}", s);
+                    src = s.source();
+                }
+                return Err(anyhow::anyhow!("armored public cert failed: {:?}", e));
+            }
+        };
+
+        // 私钥（TSK）装甲（包含秘密密钥包）
+        let secret_out = match cert.as_tsk().armored().to_vec() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("armored secret tsk failed: {:?}", e);
+                let mut src = e.source();
+                while let Some(s) = src {
+                    eprintln!("Caused by: {:?}", s);
+                    src = s.source();
+                }
+                return Err(anyhow::anyhow!("armored secret tsk failed: {:?}", e));
+            }
+        };
 
         Ok(Self { secret_bytes: secret_out, public_bytes: public_out, cert })
     }
