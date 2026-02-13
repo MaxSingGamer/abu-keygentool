@@ -41,23 +41,27 @@ impl SecureKey {
             }
         };
 
-        // 输出证书包含的密钥计数（供调试）
-        let key_count = cert.keys().count();
-        eprintln!("cert.keys() count: {}", key_count);
+        // 输出证书包含的密钥计数（仅在 debug 构建时打印）
+        if cfg!(debug_assertions) {
+            let key_count = cert.keys().count();
+            eprintln!("cert.keys() count: {}", key_count);
 
-        // 打印完整 Cert 的调试信息，便于诊断序列化问题
-        eprintln!("cert debug: {:#?}", cert);
+            // 打印完整 Cert 的调试信息，便于诊断序列化问题
+            eprintln!("cert debug: {:#?}", cert);
+        }
 
         // 使用 ASCII 装甲导出（保证 GnuPG 可导入）
         // 公钥（TPK）装甲
         let public_out = match cert.armored().to_vec() {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("armored public cert failed: {:?}", e);
-                let mut src = e.source();
-                while let Some(s) = src {
-                    eprintln!("Caused by: {:?}", s);
-                    src = s.source();
+                if cfg!(debug_assertions) {
+                    eprintln!("armored public cert failed: {:?}", e);
+                    let mut src = e.source();
+                    while let Some(s) = src {
+                        eprintln!("Caused by: {:?}", s);
+                        src = s.source();
+                    }
                 }
                 return Err(anyhow::anyhow!("armored public cert failed: {:?}", e));
             }
@@ -67,11 +71,13 @@ impl SecureKey {
         let secret_out = match cert.as_tsk().armored().to_vec() {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("armored secret tsk failed: {:?}", e);
-                let mut src = e.source();
-                while let Some(s) = src {
-                    eprintln!("Caused by: {:?}", s);
-                    src = s.source();
+                if cfg!(debug_assertions) {
+                    eprintln!("armored secret tsk failed: {:?}", e);
+                    let mut src = e.source();
+                    while let Some(s) = src {
+                        eprintln!("Caused by: {:?}", s);
+                        src = s.source();
+                    }
                 }
                 return Err(anyhow::anyhow!("armored secret tsk failed: {:?}", e));
             }

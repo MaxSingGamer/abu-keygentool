@@ -82,6 +82,22 @@ impl UserInterface {
         
         Ok(name)
     }
+
+    /// 输入邮箱地址（用于 OpenPGP User ID）
+    pub fn input_email(&self) -> Result<String> {
+        let email: String = Input::with_theme(&self.theme)
+            .with_prompt("请输入您的电子邮箱 (用于 User ID)")
+            .validate_with(|input: &String| {
+                if input.contains('@') && input.contains('.') {
+                    Ok(())
+                } else {
+                    Err("请输入有效的邮箱地址")
+                }
+            })
+            .interact()?;
+
+        Ok(email)
+    }
     
     /// 选择文件保存位置
     pub fn select_save_location(&self, default_name: &str) -> Result<PathBuf> {

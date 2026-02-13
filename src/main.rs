@@ -89,7 +89,9 @@ impl KeyGenerator {
         println!("{} 正在生成ECC P-256密钥对...", ui::style("⏳").cyan());
 
         // 生成密钥（使用 OpenPGP user id 使得证书与私钥匹配）
-        let user_id = format!("{} <{}@abu.mc>", bank_name, bank_name.to_lowercase());
+        // 让用户输入邮箱，以便构建标准的 User ID
+        let email = self.ui.input_email()?;
+        let user_id = format!("{} <{}>", bank_name, email);
         let secure_key = match security::SecureKey::generate(&user_id) {
             Ok(k) => k,
             Err(e) => {
