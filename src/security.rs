@@ -1,5 +1,3 @@
-pub mod encryption;
-
 use sequoia_openpgp as openpgp;
 use openpgp::cert::prelude::*;
 use openpgp::serialize::SerializeInto;

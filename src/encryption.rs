@@ -26,7 +26,7 @@ pub fn aes_gcm_encrypt(
 }
 
 /// 使用AES-GCM解密数据
-#[allow(dead_code)]
+
 pub fn aes_gcm_decrypt(
     ciphertext: &[u8],
     key: &[u8; 32],

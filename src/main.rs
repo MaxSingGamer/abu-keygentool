@@ -1,7 +1,7 @@
 mod security;
 mod pgp;
 mod ui;
-mod config;
+mod encryption;
 
 use anyhow::Result;
 use std::fs;
@@ -52,7 +52,7 @@ impl KeyGenerator {
         let mut nonce_arr = [0u8; 12];
         nonce_arr.copy_from_slice(nonce);
 
-        let plaintext = security::encryption::aes_gcm_decrypt(ciphertext, &key, &nonce_arr)?;
+        let plaintext = encryption::aes_gcm_decrypt(ciphertext, &key, &nonce_arr)?;
 
         // 警告并询问是否保存明文私钥
         println!("警告：即将导出私钥原文，可能导致密钥泄露！");
@@ -177,7 +177,7 @@ impl KeyGenerator {
         secure_key: &security::SecureKey,
         password: &str,
     ) -> Result<Vec<u8>> {
-        use security::encryption::aes_gcm_encrypt;
+        use encryption::aes_gcm_encrypt;
 
         // 生成盐值
         let mut salt = [0u8; 16];
