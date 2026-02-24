@@ -50,7 +50,7 @@ impl UserInterface {
             0 => Ok(Operation::Generate),
             1 => Ok(Operation::Decrypt),
             2 => Ok(Operation::Exit),
-            _ => Ok(Operation::Exit),
+            _ => Err(anyhow::anyhow!("无效的选择"))
         }
     }
     
