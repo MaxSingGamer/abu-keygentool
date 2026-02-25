@@ -3,12 +3,12 @@
 
 English
 -------
-ABU Keygen Tool (Alpha Bank Union) is a small utility that generates ECC OpenPGP-compatible key pairs and exports public/private keys.
+ABU (Alpha Bank Union) Keygen Tool is a small utility that generates ECC OpenPGP-compatible key pairs and exports public/private keys.
 
 Main features:
 - Generate matching OpenPGP key pairs (ECDSA P-256) using sequoia-openpgp.
 - Export standard OpenPGP public key (ASCII-armored `.asc`) for sharing.
-- Serialize secret key (TSK) and encrypt it with a password (PBKDF2-SHA256 + AES-GCM), saved as a binary blob.
+- Encrypt the secret key with a password (PBKDF2-SHA256 + AES-GCM), saved as a binary blob.
 - Optional plaintext secret export (INSECURE — use only in tightly controlled scenarios).
 - Decrypt encrypted private-key files with password and optionally export plaintext.
 
@@ -33,7 +33,7 @@ Security:
 主要功能：
 - 使用 `sequoia-openpgp` 生成匹配的 OpenPGP 密钥对（ECDSA P-256）。
 - 导出标准 OpenPGP 公钥（ASCII 装甲 `.asc`），方便转发给他人。
-- 将秘密密钥（TSK）序列化后使用密码进行加密（PBKDF2-SHA256 + AES-GCM），并保存为二进制文件。
+- 将私钥使用密码进行加密（PBKDF2-SHA256 + AES-GCM），并保存为二进制文件。
 - 可选导出私钥原文（不安全——仅限受控场景短时使用）。
 - 支持对加密私钥文件进行解密并导出私钥（需密码）。
 

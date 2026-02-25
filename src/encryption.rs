@@ -3,7 +3,6 @@ use aes_gcm::{
     Aes256Gcm, Key, Nonce,
 };
 use rand::RngCore;
-// zeroize removed (no local SecureBuffer present)
 
 /// 使用AES-GCM加密数据
 pub fn aes_gcm_encrypt(
