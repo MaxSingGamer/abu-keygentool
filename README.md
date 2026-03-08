@@ -65,4 +65,4 @@ This project is licensed under the MIT License — see `LICENSE`.
 
 Author / 作者
 ---------------
-Max Shin <xhzmax@outlook.com>
+Max Shin
